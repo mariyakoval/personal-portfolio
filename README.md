@@ -10,4 +10,4 @@ Portfolio of data science and computer science projects completed by me for acad
     - [Uncovering the Drivers of Car Pricing](https://rpubs.com/mkoval28/1293333): Multiple Logistic Regression on factors influencing price formation in the automobile industry.
 - Computer Science
   - Java
-    - Moneytopia - Game for Governance Education: The game is a single-player interactive simulation to show how different decisions influence the resource-dependent country's economic growth and people's well-being.
+    - [Moneytopia - Game for Governance Education](https://github.com/mariyakoval/personal-portfolio/tree/8abb5fc8440f3cbd1472e8dde74550c5e27bde8b/moneytopia): The game is a single-player interactive simulation to show how different decisions influence the resource-dependent country's economic growth and people's well-being.
