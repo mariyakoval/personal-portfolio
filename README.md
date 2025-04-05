@@ -4,6 +4,7 @@ Portfolio of data science and computer science projects completed by me for acad
 - Data analysis and visualization
   - R
     - Shiny App on Macroeconomic data: Dashboard using Shiny package to analyze how the economic implications of education influence various countries’ development, economic growth, human development, and labor market outcomes.
+    - [Assessing the Effectiveness of Kidney Treatment Procedures](https://rpubs.com/mkoval28/1293622): The goal of this study is to determine if Treatment A is superior to Treatment B after accounting for the severity of the kidney stones using Logistic Regression.
     - [Predictive Factors in Online Retail](https://rpubs.com/mkoval28/1293330): An analysis of purchase likelihood on the retail website using logistic regression modeling.
     - [Calendar Query Project](https://rpubs.com/mkoval28/1293319): Exploratory analysis of data imported from my Google Calendar, focusing on investigating data across two time periods, the relationship between sports and productivity, and study time spent per day.
     - [Predictive Factors in Cats’ Urinary Obstruction](https://rpubs.com/mkoval28/1293323): Logistic regression on factors contributing to urinary obstruction recurrence in male cats.
