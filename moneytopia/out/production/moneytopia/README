@@ -1,0 +1,28 @@
+Moneytopia is a game that teaches students the basics of economics, governance, and decision-making. 
+The game is a single-player interactive simulation to show how different decisions influence the 
+resource-dependent country's economic growth and people's well-being. Presumably, the overarching 
+task is to guide the country to prosperity by making strategic decisions across economic, social, and 
+technological policies while avoiding pitfalls like hyperinflation or economic crisis. The country’s 
+budget is randomly generated from 50 to 100 million, GDP is randomly generated between 100 to 300 million, 
+happinessIndex and sustainability are generated with possible values between 1 and 10. These statistics 
+will shift based on the player's decisions. 
+
+At the start, the player chooses between being a "single ruler" or a "democratic leader," each 
+affecting future options and consequences. As the game progresses, the user faces a variety of 
+real-world economic scenarios, each requiring critical decisions. For example, unemployment rises 
+and the user needs to decide whether to subsidize people or support entrepreneurs. Each choice leads 
+to a new scenario, like deciding whether to invest in social programs or technology to stimulate growth. 
+Scenarios are chosen randomly from a branch of possible events, creating a unique path. 
+
+Each decision leads to change in key statistics described above. For example, when presented with a 
+choice between investing in education or technology, technology investment will result in a decrease in 
+budget, an increase in GDP, happinessIndex, and sustainability. After each decision is made, the program 
+checks if the country is in crisis, meaning it has no money left in the budget to implement other policies. 
+Otherwise, the game is set to 15 rounds. 
+
+At the end of 15 rounds, meaning that no crisis happened and the country had money in their budget for the 
+whole duration of the game, the program will estimate the state of the economy of the country. Currently, 
+the program simply shows the final state of the country - crisis or no crisis. 
+The interface includes Std.Draw objects to allow the user to interact with buttons while making decisions 
+and see instructions and results in real-time. At the end of the game, the player gets the result with 
+either success or failure based on cumulative points. 

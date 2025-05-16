@@ -1,0 +1,731 @@
+---
+title: The Shareability Formula
+author: Lucas, Mariia, Olivia
+format: 
+  pdf:
+    toc: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+# set code chunk option defaults
+knitr::opts_chunk$set(
+  # display code as types
+  tidy = FALSE, 
+  # slightly smaller code font
+  size = "small",
+  # do not display messages in PDF
+  message = FALSE,
+  # set default figure width and height
+  fig.width = 5, fig.height = 3) 
+```
+
+```{r, include=FALSE}
+
+# Load necessary packages
+if (!require('pacman')) install.packages('pacman'); library('pacman')
+pacman::p_load(viridis, tidyverse, ggplot2, lubridate, knitr, dplyr, ggpubr, 
+              janitor, tidyr, kableExtra, ggcorrplot, ggthemes, 
+              gridExtra, grid, Hmisc, FSA, dunn.test)
+# Load data
+data <- read.csv("Data/OnlineNewsPopularity.csv")
+```
+
+\newpage
+# Abstract
+
+This technical appendix investigates a dataset containing 40,000 instances of news articles published by Mashable (2013 - 2015). The data contains variables related to date of posting, textual characteristics, and visual content, among others. We investigated whether certain days of posting, subjects, tones, or perspectives make articles more shareable. Through ANOVA and Kruskal-Wallis rank sum tests, we found that image count, tone, subjectivity and posting date are significant predictors of article shareability. Notably, weekend publications and articles outside Mashable’s six primary theme categories outperformed others in shares. Textual analysis also revealed that higher positivity and opinionated tones correlated with popularity. These findings have limitations in terms of the dataset’s age and potential platform-specific biases.
+
+# Introduction and context
+
+Media has emerged as a powerful source for information, influence, and entertainment. Content creators today can shape public opinion, create emotional responses, spread ideas, and affect consumer behavior. With hundreds of millions of posts every day flooding the web, understanding what makes content worth sharing is more critical than ever. 
+We aim to determine content shareability indicators - from post timing and content category to the number of visuals and overall sentiment. These determinations can help newsmakers, digital marketers, and content managers improve their tactics and reach greater online audiences.
+
+# Dataset and Wrangling
+
+The dataset contains approximately 40,000 articles published by Mashable between January 2013 and January 2015. The dataset is essentially a census which scraped data from all of Mashable's articles published during this two-year period. Mashable is a digital media and news platform known for covering technology, entertainment, and culture. As of November 2015, the outlet had over 6 million Twitter followers, highlighting its strong presence and influence on social media.
+
+# When do news articles get more shares (timing-wise)?
+
+## Data Wrangling
+
+In order to clean up the initial dataset and allow for visualizations and analysis on timing of shares, the data was heavily culled and simplified. We began by creating two new variables; `data_channel` served as a longer version of six other variables identifying an article as being published under a certain category, with NA values now indicating that an article was not published in any of the six categories. Similarly, `dayofweek` functions as a longer version of seven variables indicating whether an article was published on a certain day of the week. Both variables were treated as categorical after their creation, with `dayofweek` also ordered from Monday-Sunday.
+
+Finally, we selected only variables that were relevant for analysis of articles' category and timing. These included `dayofweek` and `data_channel` as well as the `shares` (the number of shares the article received) and `url` (which served as an identifier variable). Extreme outliers (articles receiving less than 100 shares or more than 100,000 shares) were removed, reducing the total number of cases from 39,644 to 39,499.
+
+```{r}
+# Create single categorical variable for data channel
+news_EDA <- data |>
+  mutate(data_channel = case_when(
+    data_channel_is_lifestyle == 1 ~ "Lifestyle", 
+    data_channel_is_entertainment == 1 ~ "Entertainment",	 
+    data_channel_is_bus == 1 ~ "Business", 
+    data_channel_is_socmed == 1 ~ "Social Media", 
+    data_channel_is_tech == 1 ~ "Tech", 
+    data_channel_is_world == 1 ~ "World", 
+    TRUE ~ NA)
+  ) |>
+  select(!starts_with("data_channel_is"))
+
+# Create single categorical variable for day of week
+news_EDA_2 <- news_EDA |>
+  mutate(dayofweek = case_when(
+     weekday_is_monday == 1 ~ "Monday",
+     weekday_is_tuesday == 1 ~ "Tuesday",
+     weekday_is_wednesday  == 1 ~ "Wednesday",
+     weekday_is_thursday == 1 ~ "Thursday",
+     weekday_is_friday == 1 ~ "Friday",
+     weekday_is_saturday == 1 ~ "Saturday",
+     weekday_is_sunday == 1 ~ "Sunday",
+    TRUE ~ NA)
+  ) |>
+  select(!starts_with("weekday_is")) |>
+  mutate(dayofweek = factor(dayofweek, ordered = TRUE, levels = 
+                              c("Monday", "Tuesday", "Wednesday", 
+                                "Thursday", "Friday", "Saturday", "Sunday")))
+
+# Select only relevant variables for next stage of analysis, exclude outliers
+newsanalysis <- news_EDA_2 |>
+  select(url, dayofweek, data_channel, shares) |>
+  filter(shares > 100, shares < 100000)
+```
+
+## Exploratory Data Analysis
+
+Before performing any tests, we hoped to get a broader sense of what days of the week articles tended to get increased shares, and whether those patterns differed depending on the type of article.
+
+Counting the number of articles in each data channel (Figure 1) reveals that each article is assigned a distinct data channel, with no overlap. 
+The most common data channels are lifestyle and social media; however, a sizable proportion of articles (~15.5%) are not assigned to any data channel. 
+As shown in the figure below, these uncategorized articles also receive more shares on average than any assigned category.
+
+```{r, fig.cap = "The average number of shares an article in each data channel receives."}
+# Get counts for each data channel
+data |>
+  count(data_channel_is_lifestyle, data_channel_is_entertainment, 
+        data_channel_is_bus, data_channel_is_socmed, data_channel_is_tech, 
+        data_channel_is_world)
+# No articles are categorized in multiple data channels, but a
+# large number are not assigned to any data channel
+
+# Plot mean shares by data channel (news category)
+newsanalysis |>
+  group_by(data_channel) |>
+  dplyr::summarize(meanshares = mean(shares)) |>
+  ggplot(aes(x = data_channel, y = meanshares)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Mean shares by data channel",
+    x = "Data channel",
+       y = "Mean shares") +
+    theme_minimal()+
+  theme(
+  axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+We also counted the number of articles published on each day of the week (Figure 2). Most articles are published throughout the work week, with a slight drop-off on Fridays and fewer articles published on weekends (for example, only 2737 of the articles were published on a Sunday, versus 7435 published on a Wednesday).
+
+However, though fewer in number, articles published on the weekend appear to get more shares on average.
+
+```{r, fig.cap="The average number of article shares per day of the week."}
+# Get counts for each weekday
+data |>
+  count(weekday_is_monday, weekday_is_tuesday, weekday_is_wednesday, 
+        weekday_is_thursday, weekday_is_friday, weekday_is_saturday, 
+        weekday_is_sunday)
+# Fewer articles seem to be published on Saturdays and Sundays, 
+# with a slightly lower number of articles published on Fridays 
+# compared to other weekdays.
+
+# Plot mean shares by day of week
+newsanalysis |>
+  group_by(dayofweek) |>
+  dplyr::summarize(meanshares = mean(shares)) |>
+  ggplot(aes(x = dayofweek, y = meanshares)) +
+  geom_bar(stat = "identity")+
+  labs(title = "Mean shares by day of the week",
+       x = "Mean shares",
+       y = "Day of the week") +
+    theme_minimal()+
+  theme(
+  axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Figure 3 shows the effects of the day of the week an article is published and the category ("data channel") the article is assigned to on the article's shares. 
+As evidenced by the first plot, we found significant differences in an article's average number of shares on weekends versus weekdays. 
+More specifically, an article published on Saturday or Sunday is likely to get significantly higher shares than if it was published on any weekday.
+However, articles assigned to the most popular categories, Social Media and Lifestyle, tend to get higher shares regardless of what day of the week they are published.
+We also found evidence that uncategorized articles receive significantly more shares on average than articles published in any other data channel, which is reflected in the second plot.
+These articles also tend to perform well regardless of what day of the week they are published.
+Given that there are about 6000 articles with no assigned category that make up 15% of all articles in the sample, other factors may have a greater influence on an article's popularity than their publishing time and category.
+
+```{r, fig.cap = "Average shares by day of week and data channel for categorized and uncategorized articles. Results indicate an overall increase in shares on weekends, with uncategorized articles more popular than categorized articles regardless of day of week.", fig.height = 3, fig.width = 10, warning=FALSE}
+# plot mean shares by data channel and day of week
+plot1 <- newsanalysis |>
+  filter(is.na(data_channel) == FALSE) |>
+  group_by(dayofweek, data_channel) |>
+  dplyr::summarize(meanshares = mean(shares)) |>
+  ggplot(aes(x = dayofweek, y = meanshares)) +
+  facet_wrap(~data_channel) +
+  geom_bar(stat = "identity", width = 0.5) +
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  xlab("Day of week") +
+  ylab("Mean shares") +
+  labs(title = "Mean Shares by Day of Week and Data Channel") +
+    theme_minimal()+
+  theme(
+    strip.text = element_text(size = 10),
+    plot.title = element_text(margin = ggplot2::margin(b = 5), 
+                              size = 13, hjust = 0.5),
+    plot.subtitle = element_text(size = 10),
+    axis.title.x = element_text(margin = ggplot2::margin(t = 5)),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 4)),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    legend.text = element_text(size = 10)
+  )
+# plot mean shares for articles with no assigned data channel
+plot2 <- newsanalysis |>
+  filter(is.na(data_channel) == TRUE) |>
+  group_by(dayofweek) |>
+  dplyr::summarize(meanshares = mean(shares)) |>
+  ggplot(aes(x = dayofweek, y = meanshares)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  xlab("Day of week") +
+  ylab("Mean shares") +
+  labs(fill = "Mean shares", 
+       title = "Mean Shares for Uncategorized Articles") +
+   theme_minimal()+
+  theme(
+    strip.text = element_text(size = 10),
+    plot.title = element_text(margin = ggplot2::margin(b = 5), 
+                              size = 13, hjust = 0.5),
+    plot.subtitle = element_text(size = 10),
+    axis.title.x = element_text(margin = ggplot2::margin(t = 5)),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 4)),
+    axis.text.x = element_text(size = 8),
+    axis.text.y = element_text(size = 8),
+    legend.text = element_text(size = 10),
+    legend.position = "right"
+  )
+
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+## Checking Model Assumptions
+
+Because our question of interest involves analyzing one continuous variable (number of shares) and two categorical variables (day of week and data channel), we decided to conduct a two-way ANOVA to determine where significant differences are present in the number of shares depending on the day of the week, the assigned data channel/category, and the interaction between those two variables.
+
+However, before conducting an ANOVA and any associated tests of significance, we first checked the relevant assumptions: normality, independence, homogeneity of variance, and outliers.
+
+Since we are essentially performing a census of Mashable articles which are each counted only once, we can assume the independence condition has been met.
+
+Additionally, since we've seen from our exploratory data analysis that each data channel and day of week contains a large number of observations, we can assume the normality condition based on a large sample size.
+
+This leaves us with the homogeneity of variance and potential outliers.
+
+```{r}
+# Test ANOVA assumptions
+
+# Homogeneity assumption: are variances equal? Are there any outliers?
+ggplot(newsanalysis) +
+  aes(x = dayofweek, y = shares) +
+  geom_boxplot()+
+    theme_minimal()+
+  theme(
+  axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs (x = "Data channel",
+        y = "Shares")
+
+
+ggplot(newsanalysis) +
+  aes(x = data_channel, y = shares) +
+  geom_boxplot()+
+    theme_minimal()+
+  theme(
+  axis.text.x = element_text(angle = 45, hjust = 1)) +
+   labs (x = "Data channel",
+        y = "Shares")
+```
+
+In both cases, there are a number of significant outliers even with the most extreme cases removed during wrangling. However, we believed it was worth running the analysis with these outliers, since extreme shareability is often the goal of these articles, while also running identical tests on a transformed version of the data to see whether effects would persist.
+
+## Model Results and Interpretation
+
+In order to determine whether there were significant differences in the number of shares an article receives based its day of publishing and its assigned data channel, we conducted a two-way ANOVA on the dataset (with cases <100 shares and >100,000 shares removed).
+
+```{r}
+# Conduct two-way ANOVA with only the largest outliers removed
+newsanalysis2 <- newsanalysis |>
+  mutate(data_channel = ifelse(is.na(data_channel), "None", data_channel))
+
+newsanova <- aov(shares ~ dayofweek * data_channel, data = newsanalysis2)
+summary(newsanova)
+```
+
+As the two-way ANOVA revealed significant effects of both day of week and data channel on number of shares, we conducted Tukey's HSD post-hoc tests on both variables within the two-way ANOVA model to determine which differences were most significant.
+
+```{r}
+# Conduct Tukey's HSD to assess significant comparisons within the ANOVA
+TukeyHSD(newsanova, "dayofweek")
+TukeyHSD(newsanova, "data_channel")
+```
+
+In order to better glean where the greatest differences in day of week and data channel were, we filtered out only results with significant p-values:
+
+```{r}
+# Run Tukey's HSD for day of week
+tukey_day <- TukeyHSD(newsanova, "dayofweek")
+
+# Convert to data frame and filter for significant comparisons
+sig_day <- as.data.frame(tukey_day$dayofweek)
+sig_day <- sig_day[sig_day$`p adj` < 0.05, ]
+print(sig_day)
+
+# Complete same process for data channel comparisons
+tukey_channel <- TukeyHSD(newsanova, "data_channel")
+sig_channel <- as.data.frame(tukey_channel$data_channel)
+sig_channel <- sig_channel[sig_channel$`p adj` < 0.05, ]
+print(sig_channel)
+```
+
+Notably, the only day of week comparisons with significant differences were between either Saturday or Sunday and each weekday, with the weekend day always receiving significantly more shares than the weekday.
+
+More nuanced differences are apparent when data channels are compared, with 17 out of a possible 21 combinations registering significant differences (this is most likely due to the extremely large sample size). 
+However, the six largest differences in mean shares as determined by Tukey's HSD were between uncategorized articles and all data channels, with uncategorized articles always having higher mean shares.
+Additionally, articles categorized as "social media" performed significantly better on average than articles in any of the other five data channels.
+
+In order to confirm that these significant results were not brought about by the outliers noted earlier, we conducted a log-transformation on the number of shares an article receives and reconducted the two-way ANOVA using the transformed data.
+
+```{r}
+# Create log-transformation of shares
+newsanalysis3 <- newsanalysis2 |>
+  mutate(logshares = log(shares))
+
+# Reassess distributions
+ggplot(newsanalysis3) +
+  aes(x = dayofweek, y = logshares) +
+  geom_boxplot() +
+  theme(
+  axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(y = "Log shares",
+       x = "Data channel")
+
+ggplot(newsanalysis3) +
+  aes(x = data_channel, y = logshares) +
+  geom_boxplot()+
+  theme(
+  axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(y = "Log shares",
+       x = "Data channel")
+
+# Reconduct ANOVA
+newsanova3 <- aov(logshares ~ dayofweek * data_channel, data = newsanalysis3)
+summary(newsanova3)
+```
+
+Not only did the two-way ANOVA on the transformed data indicate that the significant effects of day of week and data channel (as well as their interaction) persist even when the distribution is transformed, but the effects of all three on number of shares actually have larger F values than in the prior analysis.
+
+We also re-ran Tukey's post-hoc tests to check whether the patterns of significant differences between days and data channels remained similar.
+
+```{r}
+# Reconduct Tukey's HSD post-hoc tests
+TukeyHSD(newsanova3, "dayofweek")
+TukeyHSD(newsanova3, "data_channel")
+
+# Rerun Tukey HSD for day of week
+tukey_day <- TukeyHSD(newsanova3, "dayofweek")
+sig_day <- as.data.frame(tukey_day$dayofweek)
+sig_day <- sig_day[sig_day$`p adj` < 0.05, ]
+print(sig_day)
+
+# Complete same process for data channel comparisons
+tukey_channel <- TukeyHSD(newsanova3, "data_channel")
+sig_channel <- as.data.frame(tukey_channel$data_channel)
+sig_channel <- sig_channel[sig_channel$`p adj` < 0.05, ]
+print(sig_channel)
+```
+
+While the tests on the transformed data indicate that there are additional significant differences between days of the week and data channels when outliers are accounted for, differences between weekend days and weekdays still make up the majority of significant differences in average number of log(shares).
+
+With these results in mind as well as those from our EDA, it seems as though while there is no clear cut rule as to when any particular article should be published, there are better times and better categories to publish within when trying to maximize shares.
+In particular, publishing any article (but particularly one which falls into one of the six data channels Mashable created) on the weekend is likely to result in a higher number of shares on average than publishing the article on a weekday. This could be due to Mashable's readers having more free time to read and share articles on weekends despite the lower number of articles published.
+
+Additionally, articles about social media tend to perform better on average than articles in other categories (entertainment, business, lifestyle, world, and tech), but articles that don't fall into any of those six categories tend to receive more shares than articles that do. This may be because these articles tend to appeal to a broader audience, while categorized articles are geared towards a certain section of Mashable's readership.
+
+# What subject matter do people tend to share?
+
+Next, we were interested in the content of articles that people tend to share more. There were several variables included in the original dataset that were related to content. For our analysis, we were specifically interested in images and videos, aka media elements. 
+
+## Data Wrangling 
+
+To prepare the data for visualizing which types of subject matter people tend to share, we carried out several key wrangling steps. We began by creating a new categorical variable, `data_channel`, by combining multiple binary indicator columns that signified whether an article belonged to one of six main categories: Lifestyle, Entertainment, Business, Social Media, Tech, or World. Articles that did not fall into any of these categories were excluded from the analysis. To simplify comparisons across articles with different image counts, we created a `num_imgs` variable into five bins: 0, 1–2, 3–5, 6–10, and 11 or more. We then removed rows with missing data and calculated the mean number of shares and total article count for each combination of content category and image bin. Finally, we reordered the image bins as an ordered factor to ensure the bar charts displayed them in a meaningful sequence. These wrangling steps enabled a clearer summary and visualization of how article popularity interacts with content category and visual media use.
+
+## Exploratory Data Analysis 
+
+To explore how media content relates to article sharing, we began by examining the relationship between the number of images or videos and the number of shares each article received. **Figure 4** visualizes this relationship using scatterplots and linear trend lines, with the y-axis log-transformed to account for the heavy right skew in the shares distribution. This analysis reveals that while articles with more media tend to receive slightly more shares, the effect is modest. Most data points cluster at low counts of images or videos, and the near-flat trend lines suggest that simply increasing the number of media elements does not significantly boost an article’s popularity.
+
+To investigate whether this relationship varies by subject matter, we categorized each article by its content channel (e.g., *Business*, *World*, *Lifestyle*) and grouped image counts into five bins: 0, 1–2, 3–5, 6–10, and 11 or more. **Figure 4** shows the average number of shares per image bin within each channel. This breakdown reveals more complex patterns: in the *Business* and *World* categories, articles with either no images or a large number (11+) tend to receive more shares, while *Lifestyle* and *Entertainment* articles show more uniform sharing across bins. These results suggest that the influence of visual media on article popularity depends in part on the content domain, pointing to an interaction between subject matter and media use in shaping user engagement.
+
+Based on our analysis of **Figure 4**, both images and videos show a slight positive relationship with article shares, the effect is minimal, especially given how clustered the data is at low media counts. The first plot shows that articles with more images or videos tend to receive marginally more shares on average, but the trend lines are almost flat, indicating that media quantity alone doesn't strongly drive popularity. 
+
+```{r, fig.height = 3, fig.width = 10, warning=FALSE, fig.cap = "Relationship between media elements and number of shares"}
+news_long <- data %>%
+  dplyr::select(shares, num_imgs, num_videos) %>%
+  pivot_longer(cols = c(num_imgs, num_videos),
+               names_to = "media_type",
+               values_to = "count") %>%
+  mutate(media_type = recode(media_type,
+                             num_imgs = "Images",
+                             num_videos = "Videos"))
+
+# Plot
+ggplot(news_long, aes(x = count, y = log1p(shares), color = media_type)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", size = 0.5) +
+  facet_wrap(~media_type, scales = "free_x") +
+  labs(
+    title = "Relationship Between Media Elements and Article Shares",
+    x = "Number of Media Elements",
+    y = "Shares (log scale)",
+    color = "Media Type"
+  )  + theme_minimal()+
+  theme(
+  strip.text = element_text(size = 10), margin = ggplot2::margin(b = 5),
+  plot.title = element_text(margin = ggplot2::margin(b = 5), size = 13, 
+                            hjust = 0.5),
+  plot.subtitle = element_text(size = 10),
+  axis.title.x = element_text(margin = ggplot2::margin(t = 5)),
+  axis.title.y = element_text(margin = ggplot2::margin(r = 4)),
+  axis.text.x = element_text(size = 8),
+  axis.text.y = element_text(size = 8),
+  legend.text = element_text(size = 10))
+```
+
+However, **Figure 5**, which suggests down image counts by content category, reveals more nuanced patterns. For example, in the Business and World channels, articles with either no images or a high number of images (11+) tend to receive more shares, suggesting that users may prefer either streamlined content or richly visual stories in those domains. In contrast, other categories like Lifestyle or Entertainment show less variation across image bins. This indicates that subject matter and its interaction with media content can influence sharing behavior—certain audiences may respond differently to visual density depending on the topic.
+
+```{r, fig.height = 4, fig.width = 10, warning=FALSE, fig.cap = "The mean number of shares by number of images and data channel"}
+news_EDA_binned <- data |>
+  mutate(data_channel = case_when(
+    data_channel_is_lifestyle == 1 ~ "Lifestyle", 
+    data_channel_is_entertainment == 1 ~ "Entertainment",	 
+    data_channel_is_bus == 1 ~ "Business", 
+    data_channel_is_socmed == 1 ~ "Social Media", 
+    data_channel_is_tech == 1 ~ "Tech", 
+    data_channel_is_world == 1 ~ "World", 
+    TRUE ~ NA
+  )) |>
+  filter(!is.na(data_channel)) |>
+  mutate(img_bin = case_when(
+    num_imgs == 0 ~ "0",
+    num_imgs %in% 1:2 ~ "1–2",
+    num_imgs %in% 3:5 ~ "3–5",
+    num_imgs %in% 6:10 ~ "6–10",
+    num_imgs > 10 ~ "11+"
+  ))
+
+# Summarize mean shares (raw)
+img_bin_summary <- news_EDA_binned |>
+  group_by(data_channel, img_bin) |>
+  summarise(
+    mean_shares = mean(shares, na.rm = TRUE),
+    count = n(),
+    .groups = "drop"
+  )
+
+# Order bins
+img_bin_summary$img_bin <- factor(
+  img_bin_summary$img_bin,
+  levels = c("0", "1–2", "3–5", "6–10", "11+")
+)
+
+# Plot (raw mean shares) with fixed y-axis scales
+ggplot(img_bin_summary, aes(x = img_bin, y = mean_shares)) +
+  geom_col(alpha = 0.8, width = 0.7) +
+  facet_wrap(~data_channel, scales = "fixed") +  # <- Changed here
+  labs(
+    title = "Mean Shares by Number of Images (Binned) and Data Channel",
+    x = "Number of Images (Binned)",
+    y = "Mean Shares"
+  ) +  theme_minimal()+
+  theme(
+  strip.text = element_text(size = 10),
+  plot.title = element_text(margin = ggplot2::margin(b = 5), size = 13, 
+                            hjust = 0.5),
+  plot.subtitle = element_text(size = 10),
+  axis.title.x = element_text(margin = ggplot2::margin(t = 5)),
+  axis.title.y = element_text(margin = ggplot2::margin(r = 4)),
+  axis.text.x = element_text(size = 8),
+  axis.text.y = element_text(size = 8),
+  legend.text = element_text(size = 8))
+```
+
+## Checking Model Assumptions 
+
+```{r, fig.height = 3, fig.width = 10, warning=FALSE}
+# Do mean shares differ across image bins?
+anova_model <- aov(log1p(shares) ~ img_bin, data = news_EDA_binned)
+
+# check conditions 
+par(mfrow = c(1, 2))
+hist(residuals(anova_model), main = "Histogram of Residuals")
+qqnorm(residuals(anova_model))
+qqline(residuals(anova_model))
+```
+
+To test whether the average number of shares differed significantly across image bins, we conducted a one-way ANOVA using the log-transformed `shares` variable to address the skewness in the original distribution. Prior to interpreting the ANOVA results, we checked key model assumptions. A histogram of residuals and a Q-Q plot were used to assess the normality of residuals. The histogram appeared roughly bell-shaped, and the Q-Q plot showed points reasonably close to the reference line, suggesting that the normality assumption was not severely violated. Additionally, because ANOVA is relatively robust to mild violations of normality when sample sizes are large and balanced, the sizable number of observations in each image bin provides further confidence in the validity of the test results.
+
+## Model Results Interpretation 
+```{r}
+anova_result <- aov(log1p(shares) ~ img_bin, data = news_EDA_binned)
+summary(anova_result)
+
+# Conduct Tukey's HSD post-hoc test for image bins
+tukey_img_bin <- TukeyHSD(anova_result, "img_bin")
+sig_img_bin <- as.data.frame(tukey_img_bin$img_bin)
+sig_img_bin <- sig_img_bin[sig_img_bin$`p adj` < 0.05, ]
+print(sig_img_bin)
+```
+
+The ANOVA results revealed a highly significant effect of image bin on log-transformed shares, with an F-value of 112.9 and a p-value less than 2e-16. This extremely small p-value indicates strong evidence against the null hypothesis of equal means across all image bins. In other words, there are statistically significant differences in average (log) shares among the different categories of image count. The large F-statistic further suggests that the between-group variability in shares is substantially greater than the within-group variability, reinforcing the conclusion that the number of images in an article is meaningfully associated with its sharing behavior.
+
+To further investigate which specific image bins differ, we conducted a Tukey’s HSD post-hoc test. The results revealed that several pairwise comparisons between image count categories were statistically significant, particularly those involving the highest bin (11+ images). Articles with 11 or more images consistently received significantly more (log-transformed) shares compared to articles with fewer images. This suggests that while simply increasing media count has a modest overall effect, articles with a high density of images may benefit from a meaningful boost in shareability. However, given the large sample size, even small differences can become statistically significant, so these results should be interpreted with caution regarding their practical importance.
+
+# What tone and perspective make articles more shareable?
+
+Audiences engage with content in various ways, which is often influenced by the structure of the articles, their rhetoric and sentiment. In this part of the analysis, we aim to identify how the variations in tone, subjectivity, and rhetorical strategy correspond to measurable differences in how frequently content is shared using Analysis of Variance (ANOVA). 
+
+## Data Processing and Methods
+
+In order to identify whether article shareability depends on the textual characteristics, we selected variables related to sentiment scores, polarity ratings, and subjectivity. Particularly, 
+
+* `num_keywords` - The number of keywords identified in the text.
+* `global_subjectivity` - A score measuring the overall subjectivity of the full text. Closer to 1 = more subjective/opinionated; closer to 0 = more objective/factual.
+* `global_sentiment_polarity` - Overall sentiment polarity score of the full text, ranging from -1 = very negative to +1 = very positive).
+* `global_rate_positive_words` - The ratio of positive words to the total number of words in the full text.
+* `global_rate_negative_words` - The ratio of negative words to total words in the full text.
+* `avg_positive_polarity` - Average polarity of all the positive words in the text. A higher average indicates stronger positivity when it does occur.
+* `avg_negative_polarity` - Average polarity of all the negative words in the text. A more negative value indicates stronger negativity when present.
+* `title_subjectivity` - Subjectivity score of the post title.
+* `title_sentiment_polarity` - Sentiment polarity score of the title. Useful for gauging first impressions or clickbait potential.
+
+Since the dataset contains almost 40,000 observations, we took a 10% sample to balance computational efficiency with analytical validity. The drawn sample will allow to capture the key trends that can be extended to the full dataset.
+
+```{r}
+set.seed(321)
+sampled_data <- data |> 
+  sample_frac(0.10)
+```
+
+## Exploratory Data Analysis
+
+**Based on the scatterplots below (Figure 6), we noted key things**:
+
+* The number of keywords and shares have a weak positive association. Some highly shared articles are clustered around a keyword count of 10.
+* Articles with a moderate level of subjectivity receive more shares, with most data clustering around 0.5. Highly objective or subjective articles receive fewer shares, but there are still a few outliers with very high share counts across the spectrum.
+* Neutral sentiment polarity (values within the range of 0.0 - 0.25) is associated with higher shareability, including some of the most viral articles, suggesting restraint in emotional language may correlate with shareability.
+* Articles with higher ratios of both positive and negative words are associated with fewer shares.
+* Both negative and positive polarity with scores of around -0.25 and 0.25 respectively are associated with the highest share count, which can be attributed to more neutral articles performing better than very emotional ones.
+* Title subjectivity showed no strong correlation with number of shares. However, neutral or mildly polar titles tended to dominate among highly shared articles.
+
+```{r, fig.cap = "Scatter Plots: Text Features vs. Shares"}
+
+# Common theme for plots
+gg <- theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(size = 10, face = "bold"),
+    axis.title = element_text(size = 8),
+    axis.text = element_text(size = 7)
+  )
+
+# Scatter plots 
+p1 <- ggplot(sampled_data, aes(x = num_keywords, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Number of keywords") + ylab("Shares")
+
+p2 <- ggplot(sampled_data, aes(x = global_subjectivity, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Global subjectivity") + ylab("Shares")
+
+p3 <- ggplot(sampled_data, aes(x = global_sentiment_polarity, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Global sentiment polarity") + ylab("Shares")
+
+p4 <- ggplot(sampled_data, aes(x = global_rate_positive_words, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Positive word rate") + ylab("Shares")
+
+p5 <- ggplot(sampled_data, aes(x = global_rate_negative_words, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Negative word rate") + ylab("Shares")
+
+p6 <- ggplot(sampled_data, aes(x = avg_positive_polarity, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Avg positive polarity") + ylab("Shares")
+
+p7 <- ggplot(sampled_data, aes(x = avg_negative_polarity, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Avg negative polarity") + ylab("Shares")
+
+p8 <- ggplot(sampled_data, aes(x = title_subjectivity, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Title subjectivity") + ylab("Shares")
+
+p9 <- ggplot(sampled_data, aes(x = title_sentiment_polarity, y = shares)) +
+  geom_point(alpha = 0.3) + geom_smooth(method = "loess", se = FALSE) +
+  gg + xlab("Title sentiment polarity") + ylab("Shares")
+
+# Arrange in grid
+grid.arrange(grobs = list(p1, p2, p3, p4, p5, p6, p7, p8, p9), 
+             ncol = 3, nrow = 3, 
+             top = "Scatter plots: Text Features vs. Shares")
+
+```
+
+**Correlation coefficients**
+
+To assess the strength of the relationships between text-related variables and share counts, we conducted the Spearman Coefficient test. Based on the output (Table 1), the top 7 correlations are statistically significant (p < 0.05). `global_subjectivity` has the strongest positive association with article shares, but the relationship is still quite weak (0.12). Negative sentiment-related variables, such as `avg_negative_polarity` and `global_rate_negative_words`, along with `title_subjectivity` show very weak negative correlations (-0.01) and have p-values above significance level of 0.05.
+
+```{r, results='hide'}
+
+# Select variables of interest
+selected <- c("num_keywords", "global_subjectivity", 
+              "global_sentiment_polarity",
+              "global_rate_positive_words", 
+              "global_rate_negative_words",
+              "avg_positive_polarity", 
+              "avg_negative_polarity",
+              "title_subjectivity", 
+              "title_sentiment_polarity", 
+              "shares")
+
+# Calculate Spearman correlations 
+result <- sampled_data |>
+  select(all_of(selected)) |>
+  as.matrix() |>
+  rcorr(type = "spearman") |>
+  with({
+    features <- setdiff(colnames(r), "shares")
+    # Select correlation coefficients related to shares only
+    tibble(
+      Feature = features,
+      Spearman_Coefficient = r["shares", features],
+      p_value = P["shares", features]
+    )
+  }) |>
+  arrange(desc(abs(Spearman_Coefficient)))
+
+```
+
+```{r}
+result |>
+  rename(
+    "Spearman Coefficient" = Spearman_Coefficient,
+    "p-value" = p_value
+  ) |>
+  mutate(across(where(is.numeric), ~ round(., 3))) |>
+  knitr::kable(
+    caption = "Spearman Correlations with Article Shares",
+    format = "latex", 
+    booktabs = TRUE,  
+    align = c("l", "c", "c"),
+    col.names = c("Predictor", "Correlation", "p-value")
+  ) |>
+  kableExtra::kable_styling(
+    latex_options = "hold_position",
+    bootstrap_options = c("striped"),
+    full_width = FALSE,
+    font_size = 12
+  )
+
+```
+
+Because of low correlation values, we chose 5 variables with the highest correlation values, such as `global_subjectivity`, `global_sentiment_polarity`, `global_rate_positive_words`, `num_keywords`, and `avg_positive_polarity`. Since they had many outliers and no apparent linear relationships, we split these continuous variables into quartiles to treat them as categorical variables. It allowed us to better capture non-linear relationships and differences between groups. Shares appeared as a highly skewed distribution with outliers, so we applied a logarithmic y-axis transformation to allow for easier comparisons between groups (Figure 7).
+
+```{r, fig.cap = "Box plots: Text Features vs. Shares", fig.width=6}
+
+# Split the data into 4 bins to treat as categorical variables
+binned_data <- sampled_data |>
+  mutate(
+    bin_subjectivity = ntile(global_subjectivity, 4),
+    bin_sentiment = ntile(global_sentiment_polarity, 4),
+    bin_posrate = ntile(global_rate_positive_words, 4),
+    bin_keywords = ntile(num_keywords, 4),
+    bin_avgpos = ntile(avg_positive_polarity, 4)
+  )
+
+make_boxplot <- function(data, bin_var, bin_label) {
+  ggplot(data, aes(x = factor(.data[[bin_var]]), y = shares)) +
+    geom_boxplot() +
+    scale_y_log10() +
+    annotation_logticks(sides = "l") +
+    labs(
+      title = paste(bin_label),
+      x = paste(bin_label, "Bin"), y = "Shares"
+    ) + gg
+}
+
+# Create individual plots
+p1 <- make_boxplot(binned_data, "bin_subjectivity", "Global subjectivity")
+p2 <- make_boxplot(binned_data, "bin_sentiment", "Global sentiment polarity")
+p3 <- make_boxplot(binned_data, "bin_posrate", "Positive word rate")
+p4 <- make_boxplot(binned_data, "bin_keywords", "Number of keywords")
+p5 <- make_boxplot(binned_data, "bin_avgpos", "Average positive polarity")
+
+grid.arrange(grobs = list(p1, p2, p3, p4, p5), 
+             ncol = 3, nrow = 2, 
+             top = "Box plots: Text Features vs. Shares")
+```
+
+
+## Testing
+
+To find whether mean number of shares varied significantly by groups, we had initially considered doing a one-way Analysis of Variance (ANOVA). ANOVA was used to evaluate whether the mean number of shares varies across these quartile-based bins. For each test, the null hypothesis was that all group means are equal, such as that bin membership does not have any impact on average shares, whereas the alternative hypothesis was that at least one of the group means is different.
+
+Before running ANOVA, we verified its key assumptions. The independence of observations was satisfied with the sampling design because each observation is independent from the others. However, the residuals were not normally distributed, as confirmed by the plot showing the differences between observed and predicted values. This extreme non-normality made the result of the ANOVA invalid for some variables.
+
+Therefore, we used the Kruskal-Wallis test, a non-parametric alternative to ANOVA that does not assume normality of residuals. The test verifies if share distributions differ across the quartile-based bins. The results revealed statistically significant differences in shares for all five variables. These findings suggest that the shareability of articles is influenced by variations in textual features.
+
+```{r}
+kruskal.test(shares ~ factor(bin_subjectivity), data = binned_data)
+kruskal.test(shares ~ factor(bin_sentiment), data = binned_data)
+kruskal.test(shares ~ factor(bin_posrate), data = binned_data)
+kruskal.test(shares ~ factor(bin_keywords), data = binned_data)
+kruskal.test(shares ~ factor(bin_avgpos), data = binned_data)
+```
+
+Specifically, the variable `global_subjectivity` had the highest effect on share counts, followed by `global_sentiment_polarity`, which means that subjectivity of content and sentiment are connected with audience engagement. Similarly, `global_rate_positive_words`, `num_keywords`, and `avg_positive_polarity` saw significant differences in shares. These results indicate that more subjective, positively skewed, keyword-dense, and positive content is likely to have higher shareability. Since Kruskal-Wallis only informs us that there are differences between groups, we need to conduct post-hoc testing to identify which particular groups are causing these differences, so we used Dunn test to compare each pair of groups individually and identify which binned observations show significant differences. 
+
+```{r}
+dunn.test(binned_data$shares, binned_data$bin_subjectivity, method = "bh")
+dunn.test(binned_data$shares, binned_data$bin_sentiment, method = "bh")
+dunn.test(binned_data$shares, binned_data$bin_posrate, method = "bh")
+dunn.test(binned_data$shares, binned_data$bin_keywords, method = "bh")
+dunn.test(binned_data$shares, binned_data$bin_avgpos, method = "bh")
+```
+
+## Interpretation
+
+The Kruskal-Wallis tests showed statistically significant differences in the number of article shares across the levels of each binned variable: `bin_subjectivity`, `bin_sentiment`, `bin_posrate`, `bin_keywords`, and `bin_avgpos`. The Dunn tests showed revealed that:
+
+* For `bin_subjectivity`, all pairwise comparisons were significant (p < 0.05), indicating that article share counts differed significantly across every level of subjectivity.
+* For `bin_sentiment`, the highest and lowest bins differed significantly, but the comparison between bins 1 and 2 was not statistically significant, suggesting that more positive articles perform better.
+* In `bin_posrate`, shares were significantly different between most bins, particularly between lower and higher positivity rates.
+* For `bin_keywords`, articles in higher keyword-density bins had significantly different share counts compared to lower ones, especially between bins 1, 3, and 4.
+* Lastly, `bin_avgpos` showed significant differences between bins, but a some adjacent group comparisons, such as 3 and 4, were not significant.
+
+These results suggest that the distribution of article shares is influenced by the sentiment-related metrics, with clear pairwise differences. In all five variables, Dunn test outcomes indicate a clear pattern: higher binned values (more subjectivity, more sentiment, higher rate of positivity) are associated with higher article shares. 
+
+# Limitations
+
+ - Data is limited to Mashable articles between 2013 and 2015, which may not reflect current trends or generalize to other media platforms.
+ - Algorithms influence user reactions and sharing behavior, which may not fully capture genuine human responses. 
+ - When conducting statistical tests, such as ANOVA, we encountered big data challenges. Specifically, the assumptions for these tests (normality and homogeneity of variance) were not perfectly satisfied. 
+
+# Implications and Conclusion
+
+Through our statistical analysis, we were able to identify key variables impacting the shareability of the articles. Based on correlation results, ANOVA analysis and Kruskal-Wallis tests, we tested variables for significance in influencing our response variable of interest - share counts.
+
+Our findings suggest that both visually dense articles and articles with no images can go viral, depending on the subject of the article. Articles published on the weekend are likely to get a higher share count on average than the article published on a weekday. In terms of categories, articles about social media are likely to perform better on average than articles in other categories (entertainment, business, lifestyle, world, and tech). However, articles that don’t fall into any of those six categories receive more shares on average than articles that do. Lastly, higher values related to tone and perspective, including more subjectivity, more positive perspective, and higher key word count are associated with higher article shares.
+
+These findings underscore the importance of not only what is said in news articles or blog posts, but how and when it is said, which is crucial for content-makers, media groups, and marketing agencies, among others. With correct timing and carefully selected content, high shareability can lead to faster growth in platform popularity, number of subscribers, and greater engagement.
