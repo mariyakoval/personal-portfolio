@@ -3,6 +3,7 @@ Portfolio of data science and computer science projects completed by me for acad
 # Contents
 - Data analysis and visualization
   - R
+    - [Statistical Analysis of the Main Drivers of Online Articles Virality](https://rpubs.com/mkoval28/1311314): Analysis of article shareability using one way ANOVA and Kruskal-Wallis tests on predictors related to textual features, visuals, day of posting, category, and sentiment.
     - [Blog with the Analysis of Sustainaility Indicators by Country using Machine Learning](https://acstat231-s25.github.io/blog-econ/): GitHub Blog that uses visualizations, unsupervised learning algorithms, Shiny App dashboards and analysis of international policies to uncover changes in global sustainability evels since 1990.
     - [Shiny App on Macroeconomic data](https://mariia-koval.shinyapps.io/RaceforHumanCapital/): Dashboard using Shiny package to analyze how the economic implications of education influence various countries’ development, economic growth, human development, and labor market outcomes.
     - [Assessing the Effectiveness of Kidney Treatment Procedures](https://rpubs.com/mkoval28/1293622): The goal of this study is to determine if Treatment A is superior to Treatment B after accounting for the severity of the kidney stones using Logistic Regression.
