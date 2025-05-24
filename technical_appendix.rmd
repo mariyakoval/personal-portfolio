@@ -1,8 +1,8 @@
 ---
 title: The Shareability Formula
-author: Lucas, Mariia, Olivia
+author: Mariia, Lucas, Olivia
 format: 
-  pdf:
+  html:
     toc: true
     toc_depth: 2
 ---
@@ -34,7 +34,7 @@ data <- read.csv("Data/OnlineNewsPopularity.csv")
 \newpage
 # Abstract
 
-This technical appendix investigates a dataset containing 40,000 instances of news articles published by Mashable (2013 - 2015). The data contains variables related to date of posting, textual characteristics, and visual content, among others. We investigated whether certain days of posting, subjects, tones, or perspectives make articles more shareable. Through ANOVA and Kruskal-Wallis rank sum tests, we found that image count, tone, subjectivity and posting date are significant predictors of article shareability. Notably, weekend publications and articles outside Mashable’s six primary theme categories outperformed others in shares. Textual analysis also revealed that higher positivity and opinionated tones correlated with popularity. These findings have limitations in terms of the dataset’s age and potential platform-specific biases.
+This technical appendix investigates a dataset containing 40,000 instances of news articles published by Mashable (2013 - 2015). The data contains variables related to date of posting, textual characteristics, and visual content, among others. We investigated whether certain days of posting, subjects, tones, or perspectives make articles more shareable. Through ANOVA and Kruskal-Wallis rank sum tests, we found that image count, tone, subjectivity and posting date are significant predictors of article shareability. Notably, weekend publications and articles outside Mashable’s six primary theme categories outperformed others in shares. Textual analysis also revealed that higher positivity and opinionated tones correlated with popularity. These findings have limitations in terms of the dataset’s age and potential platform-specific biases. Short summary of the study can be found [here](https://rpubs.com/mkoval28/1311313).
 
 # Introduction and context
 
